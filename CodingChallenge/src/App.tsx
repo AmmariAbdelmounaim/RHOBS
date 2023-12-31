@@ -22,11 +22,11 @@ function App() {
   const [selectedBody, setSelectedBody] = useState<IBody | null>(null);
   const { register, watch, setValue } = useForm<{
     isPlanet: boolean;
-    gravity: string;
+    gravity: number;
   }>({
     defaultValues: {
       isPlanet: false,
-      gravity: "0",
+      gravity: 0,
     },
   });
   const isPlanet = watch("isPlanet");
@@ -36,20 +36,28 @@ function App() {
     const debouncedFetchBodies = _.debounce(
       async (gravityValue: number, isPlanetChecked: boolean) => {
         try {
-          const response = await fetch(
-            "https://api.le-systeme-solaire.net/rest/bodies"
+          const tolerance = 1;
+          const apiUrl = new URL(
+            "https://api.le-systeme-solaire.net/rest.php/bodies"
           );
+          const params = new URLSearchParams();
+          params.append("data", "id,name,isPlanet,gravity");
+          params.append("order", "gravity,desc");
+
+          params.append("filter[]", `isPlanet,eq,${isPlanetChecked}`);
+          params.append(
+            "filter[]",
+            `gravity,bt,${gravityValue - tolerance},${gravityValue + tolerance}`
+          );
+          apiUrl.search = params.toString();
+
+          const response = await fetch(apiUrl);
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const data = await response.json();
-          const tolerance = 1;
-          const filteredBodies: IBody[] = data.bodies.filter(
-            (body: IBody) =>
-              (isPlanetChecked ? body.isPlanet : true) &&
-              Math.abs(body.gravity - gravityValue) <= tolerance
-          );
-          setBodies(filteredBodies);
+          console.log(data);
+          setBodies(data.bodies);
         } catch (error) {
           console.error("Error fetching the solar system bodies:", error);
         }
@@ -57,9 +65,7 @@ function App() {
       300
     );
 
-    if (gravity) {
-      debouncedFetchBodies(parseFloat(gravity), isPlanet);
-    }
+    debouncedFetchBodies(gravity, isPlanet);
 
     return () => {
       debouncedFetchBodies.cancel();
@@ -70,12 +76,6 @@ function App() {
     value: body.id,
     label: body.name,
   }));
-
-  // Handler for when the slider changes
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleSliderChange = (value: number) => {
-    setValue("gravity", value.toString());
-  };
 
   // Handler for when a new body is selected
   const handleSelectChange = (selectedOption: OptionType | null) => {
@@ -88,7 +88,7 @@ function App() {
   return (
     <>
       <div className="h-screen flex items-center justify-center bg-gray-100">
-        <div className="p-8 w-full max-w-md bg-white rounded-xl shadow-lg">
+        <form className="p-8 w-full max-w-md bg-white rounded-xl shadow-lg">
           <div className="flex items-center mb-6 justify-center">
             <img src={Logo} alt="Rhobs Logo" width={110} />
             <h3 className="text-2xl mt-[3px] font-[700] uppercase text-[#1D3C70] ">
@@ -108,11 +108,12 @@ function App() {
             </label>
             <div className="flex items-center gap-2">
               <Slider
-                defaultValue={0}
                 step={0.1}
                 min={0}
                 max={24}
-                onChange={handleSliderChange}
+                onChange={(value: number) => {
+                  setValue("gravity", value);
+                }}
                 className="w-full h-3  rounded-md flex items-center cursor-pointer"
                 thumbClassName="h-6 w-6 bg-[#EC7D05] rounded-full cursor-pointer"
                 trackClassName="h-3 bg-[#1D3C70] rounded-md"
@@ -150,7 +151,7 @@ function App() {
               />
             </div>
           </div>
-        </div>
+        </form>
       </div>
       <footer className="fixed bottom-0 text-[#EC7D05] bg-[#1D3C70] w-full text-center text-2xl py-2">
         Made by Ammari Abdelmounaim for RHOBS Intership
